@@ -29,9 +29,40 @@ function svmods_facebook_avatar_url(){
 function svmods_get_facebook_cookie(){
 	global $user, $config, $svmods_facebook_data;
 	$svmods_facebook_data=array();
-	if (isset($_COOKIE['fbs_'.$config['svmods_facebook_app_id']])){
+	if (isset($_COOKIE['fbsr_'.$config['svmods_facebook_app_id']])){
+
+        require_once($phpbb_root_path.'facebook-sdk/facebook.php');
+        if(!empty($_SERVER['DEWALL'])){
+            // 翻墙设置代理
+            Facebook::$CURL_OPTS[CURLOPT_PROXY] = '127.0.0.1:8118';
+        }
+        $facebook = new Facebook(array(
+            'appId'  => $config['svmods_facebook_app_id'],
+            'secret' => $config['svmods_facebook_secret'],
+        ));
+        $sr = $facebook->getSignedRequest();
+        // var_dump($sr);
+        /*
+          array(4) { ["algorithm"]=> string(11) "HMAC-SHA256" ["code"]=> string(195) "AQAJj7gjLjy2XDnMshk0E6l4-9r8PBahRwYhDRXC9PonWoy_cnhV4Q836RwfXTkhVEsbHZmgAT_3iSMtKnUiU3WRdrR2qi7PjFOSfG9x2-V3CsfotRmU8If7JGKZ-UgZfOWQsmw4mVriBfpse_Cca10dOKpAaGHeQMOeifA6sg2oH-P2pm-qN9WPbFjw5cvEDqg" ["issued_at"]=> int(1331713263) ["user_id"]=> string(9) "566319849" } 
+         */
+
+        $accessToken = $facebook->getAccessToken();
+        // echo $accessToken;
+
+        if( !empty($sr['user_id']) and !empty($accessToken) ) {
+            $user->data['is_facebook_user'] = $sr['user_id'];
+            $user->data['svmods_facebook_data']['cookie'] = array(
+                'uid'          => $sr['user_id'],
+                'access_token' => $accessToken,
+            );
+            // print_r($user->data['svmods_facebook_data']['cookie']);
+            // exit;
+            return true;
+        }
+
+        /*
 		$args=array();
-		parse_str(trim($_COOKIE['fbs_'.$config['svmods_facebook_app_id']], '\\"'), $args);
+		parse_str(trim($_COOKIE['fbsr_'.$config['svmods_facebook_app_id']], '\\"'), $args);
 		ksort($args);
 		$payload='';
 		foreach ($args as $key => $value){
@@ -44,7 +75,10 @@ function svmods_get_facebook_cookie(){
 			$user->data['is_facebook_user']=$args['uid'];
 			return true;
 		}
+         */
+        
 	}
+    
 	return false;
 }
 
@@ -105,6 +139,12 @@ if (!function_exists('svmods_mcurl')){
 			$ch=array();
 			for ($x=0;$x<sizeof($urls);$x++){
 				$ch[$x]=curl_init();
+                    
+                if(!empty($_SERVER['DEWALL'])){
+                    // 翻墙设置代理
+                    curl_setopt($ch[$x], CURLOPT_PROXY, '127.0.0.1:8118');
+                }
+
 				curl_setopt($ch[$x], CURLOPT_URL, $urls[$x]);
 				curl_setopt($ch[$x], CURLOPT_RETURNTRANSFER, true);
 				curl_setopt($ch[$x], CURLOPT_HEADER, false);
@@ -148,9 +188,9 @@ function svmods_facebook_connect_template_hook(&$hook){
 			}
 			set_config('svmods_facebook_uid_reset', 1, false);
 			// smash admins cookie!
-			if (isset($_COOKIE['fbs_'.$config['svmods_facebook_app_id']])){
-				setcookie('fbs_'.$config['svmods_facebook_app_id'],NULL,time(),'/');
-				unset($_COOKIE['fbs_'.$config['svmods_facebook_app_id']]);
+			if (isset($_COOKIE['fbsr_'.$config['svmods_facebook_app_id']])){
+				setcookie('fbsr_'.$config['svmods_facebook_app_id'],NULL,time(),'/');
+				unset($_COOKIE['fbsr_'.$config['svmods_facebook_app_id']]);
 			}
 		}
 		if ($config['svmods_facebook_compat']<1){
@@ -238,6 +278,7 @@ function svmods_facebook_connect_template_hook(&$hook){
 						'CONTENT'	=> '<input id="svmods_facebook_secret" type="text" size="20" name="config[svmods_facebook_secret]" value="'.$config['svmods_facebook_secret'].'" />',
 						'S_ROW_COUNT' => $t++
 					);
+            
 			$temp[0][]=array(
 						'KEY'	=> 'svmods_facebook_use_remote_redirect',
 						'TITLE' => 'Use remote redirect for Facebook avatars?',
@@ -273,7 +314,7 @@ function svmods_facebook_connect_template_hook(&$hook){
 			 }
 		}
 		if (!defined('ADMIN_START')){
-			$perms='perms="email, user_birthday, user_interests, user_likes, user_location, user_website, publish_stream"';
+			$perms='scope="email, user_birthday, user_interests, user_likes, user_location, user_website, publish_stream"';
 			if ($user->data['user_id']!=ANONYMOUS){
 				$template->assign_var('SVMODS_FACEBOOK_LOGIN_BUTTON', '<fb:login-button size="medium" '.$perms.'>'.svmods_default_lang('SVMODS_FACEBOOK_CONNECT_BUTTON_TEXT', 'Connect your Facebook account').'</fb:login-button>');
 			}
@@ -301,29 +342,44 @@ function svmods_facebook_connect_user_hook(&$hook){
 			}
 		}
 		else if (request_var('mode','')==='logout'){
-			if (isset($_COOKIE['fbs_'.$config['svmods_facebook_app_id']])){
-				setcookie('fbs_'.$config['svmods_facebook_app_id'],NULL,time(),'/');
-				unset($_COOKIE['fbs_'.$config['svmods_facebook_app_id']]); 
+			if (isset($_COOKIE['fbsr_'.$config['svmods_facebook_app_id']])){
+                if (isset($_COOKIE['fbm_'.$config['svmods_facebook_app_id']])){
+                    $ql_domain = $_COOKIE['fbm_'.$config['svmods_facebook_app_id']];
+                    $ql_domain_arr = array();
+                    parse_str($ql_domain, $ql_domain_arr);
+                    $ql_domain = $ql_domain_arr['base_domain'];
+
+                    setcookie('fbsr_'.$config['svmods_facebook_app_id'],NULL,time(),'/', $ql_domain);
+                    unset($_COOKIE['fbsr_'.$config['svmods_facebook_app_id']]); 
+                } else {
+                    // clear all cookies
+                    $cookies=array_keys($_COOKIE);
+                    $domain='.'.$config['cookie_domain'];
+                    foreach($cookies as $cookie){
+                        $when=time()-3600;
+                        setcookie($cookie, '', $when, '/', $domain);
+                    }
+                }
 			}
 		}
 		$temp=svmods_get_facebook_cookie();
 		if ((request_var('svmods_check_cookie','')==='fb') && (!$temp)){
-			setcookie('fbs_'.$config['svmods_facebook_app_id'],NULL,time(),'/');
+			setcookie('fbsr_'.$config['svmods_facebook_app_id'],NULL,time(),'/');
 			$message=svmods_default_lang('SVMODS_FB_LOGIN_COOKIE_ERROR', "An error appears to have occurred with your browser. If you wish to use the sites Facebook logins or registration features, please update/repair your browser, or use a different browser.<br /><br />We applogize for the inconvenience.").'<br /><br />'.sprintf($user->lang['RETURN_INDEX'], '<a href="'.append_sid("{$phpbb_root_path}index.$phpEx").'">', '</a>');
 			trigger_error($message);
 		}
 		else if (request_var('svmods_fb_cancel','')===$user->lang['CANCEL']){
 			svmods_revoke_facebook_authorization($user->data['svmods_facebook_data']['cookie']['uid'],$user->data['svmods_facebook_data']['cookie']['access_token']);
-			setcookie('fbs_'.$config['svmods_facebook_app_id'],NULL,time(),'/');
-			unset($_COOKIE['fbs_'.$config['svmods_facebook_app_id']]);
+			setcookie('fbsr_'.$config['svmods_facebook_app_id'],NULL,time(),'/');
+			unset($_COOKIE['fbsr_'.$config['svmods_facebook_app_id']]);
 			$GLOBALS['_REQUEST']['password']=NULL;
 			$temp=false;
 		}
 		else if ($user->data['user_svmods_fb_uid']>0){
 			// we're already associated with an fb account
 			if (request_var('svmods_revoke_fb',false)){
-				setcookie('fbs_'.$config['svmods_facebook_app_id'],NULL,time(),'/');
-				unset($_COOKIE['fbs_'.$config['svmods_facebook_app_id']]);
+				setcookie('fbsr_'.$config['svmods_facebook_app_id'],NULL,time(),'/');
+				unset($_COOKIE['fbsr_'.$config['svmods_facebook_app_id']]);
 				// clicked revoke auth button, give it a try if an access token is available.
 				if (!empty($user->data['svmods_facebook_data']['cookie']['access_token'])){
 					svmods_revoke_facebook_authorization($user->data['svmods_facebook_data']['cookie']['uid'],$user->data['svmods_facebook_data']['cookie']['access_token']);
@@ -367,8 +423,8 @@ function svmods_facebook_connect_user_hook(&$hook){
 						svmods_revoke_facebook_authorization($user->data['svmods_facebook_data']['cookie']['uid'],$user->data['svmods_facebook_data']['cookie']['access_token']);
 					}
 					$message=svmods_default_lang('SVMODS_FACEBOOK_MISMATCH','The '.$config['sitename'].' account you are logged in with is associated with a different Facebook account. Please use that Facebook account when logging in.');
-					setcookie('fbs_'.$config['svmods_facebook_app_id'],NULL,time(),'/');
-					unset($_COOKIE['fbs_'.$config['svmods_facebook_app_id']]);
+					setcookie('fbsr_'.$config['svmods_facebook_app_id'],NULL,time(),'/');
+					unset($_COOKIE['fbsr_'.$config['svmods_facebook_app_id']]);
 					$redirect=str_replace('svmods_check_cookie=fb','',$_SERVER['REQUEST_URI']);
 					$l_redirect=(($redirect === "index.$phpEx") ? $user->lang['RETURN_INDEX'] : $user->lang['RETURN_PAGE']);
 					$redirect=meta_refresh(3, $redirect);
