@@ -10,6 +10,20 @@ if (!function_exists('svmods_default_lang')){
 	}
 }
 
+$fb_api_client = null;
+function svmods_get_fb_client() {
+	global $config, $fb_api_client;
+
+    if(!$fb_api_client) {
+        $fb_api_client = new Facebook(array(
+            'appId'  => $config['svmods_facebook_app_id'],
+            'secret' => $config['svmods_facebook_secret'],
+        ));
+    }
+
+    return $fb_api_client;
+}
+
 function svmods_facebook_avatar_url(){
 	global $config, $fb_avatar_url, $server_url;
 	if (!isset($server_url)){
@@ -53,7 +67,8 @@ function svmods_get_facebook_cookie(){
             $user->data['is_facebook_user'] = $sr['user_id'];
             $user->data['svmods_facebook_data']['cookie'] = array(
                 'uid'          => $sr['user_id'],
-                'access_token' => $accessToken,
+                // 'access_token' => $accessToken, // fetch on demand
+                'api'          => $facebook,
             );
             // print_r($user->data['svmods_facebook_data']['cookie']);
             // exit;
@@ -86,7 +101,7 @@ function svmods_set_facebook_data($n=NULL, $id='me'){
 	global $user, $svmods_mcurl_urls, $svmods_set_returns;
 	if (!is_array($svmods_mcurl_urls)) $svmods_mcurl_urls=array();
 	if (!is_array($svmods_set_returns)) $svmods_set_returns=array();
-	$svmods_mcurl_urls[]='https://graph.facebook.com/'.$id.'/'.$n.'?access_token='.$user->data['svmods_facebook_data']['cookie']['access_token'];
+	$svmods_mcurl_urls[]='https://graph.facebook.com/'.$id.'/'.$n.'?access_token='.svmods_get_fb_client()->getAccessToken();
 	if (empty($n)) $n='user';
 	$svmods_set_returns[]=$n;
 }
@@ -144,7 +159,7 @@ if (!function_exists('svmods_mcurl')){
                     // 翻墙设置代理
                     curl_setopt($ch[$x], CURLOPT_PROXY, '127.0.0.1:8118');
                 }
-
+                
 				curl_setopt($ch[$x], CURLOPT_URL, $urls[$x]);
 				curl_setopt($ch[$x], CURLOPT_RETURNTRANSFER, true);
 				curl_setopt($ch[$x], CURLOPT_HEADER, false);
@@ -369,7 +384,7 @@ function svmods_facebook_connect_user_hook(&$hook){
 			trigger_error($message);
 		}
 		else if (request_var('svmods_fb_cancel','')===$user->lang['CANCEL']){
-			svmods_revoke_facebook_authorization($user->data['svmods_facebook_data']['cookie']['uid'],$user->data['svmods_facebook_data']['cookie']['access_token']);
+			svmods_revoke_facebook_authorization($user->data['svmods_facebook_data']['cookie']['uid'],svmods_get_fb_client()->getAccessToken());
 			setcookie('fbsr_'.$config['svmods_facebook_app_id'],NULL,time(),'/');
 			unset($_COOKIE['fbsr_'.$config['svmods_facebook_app_id']]);
 			$GLOBALS['_REQUEST']['password']=NULL;
@@ -381,8 +396,9 @@ function svmods_facebook_connect_user_hook(&$hook){
 				setcookie('fbsr_'.$config['svmods_facebook_app_id'],NULL,time(),'/');
 				unset($_COOKIE['fbsr_'.$config['svmods_facebook_app_id']]);
 				// clicked revoke auth button, give it a try if an access token is available.
-				if (!empty($user->data['svmods_facebook_data']['cookie']['access_token'])){
-					svmods_revoke_facebook_authorization($user->data['svmods_facebook_data']['cookie']['uid'],$user->data['svmods_facebook_data']['cookie']['access_token']);
+                $accessToken = svmods_get_fb_client()->getAccessToken();
+				if (!empty($accessToken)){
+					svmods_revoke_facebook_authorization($user->data['svmods_facebook_data']['cookie']['uid'],svmods_get_fb_client()->getAccessToken());
 					$message=svmods_default_lang('SVMODS_FACEBOOK_REVOKED','The request to revoke application authorization was sent to Facebook. You can also check your application settings within Facebook itself to ensure it was successful.');
 				}
 				else{
@@ -420,7 +436,7 @@ function svmods_facebook_connect_user_hook(&$hook){
 					// mismatch. we know of an account to this fb uid, but not the current one!
 					if ($user_id<1){
 						// do we have an associated account? if not, might as well revoke auth.
-						svmods_revoke_facebook_authorization($user->data['svmods_facebook_data']['cookie']['uid'],$user->data['svmods_facebook_data']['cookie']['access_token']);
+						svmods_revoke_facebook_authorization($user->data['svmods_facebook_data']['cookie']['uid'],svmods_get_fb_client()->getAccessToken());
 					}
 					$message=svmods_default_lang('SVMODS_FACEBOOK_MISMATCH','The '.$config['sitename'].' account you are logged in with is associated with a different Facebook account. Please use that Facebook account when logging in.');
 					setcookie('fbsr_'.$config['svmods_facebook_app_id'],NULL,time(),'/');
