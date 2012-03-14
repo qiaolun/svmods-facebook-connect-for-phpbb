@@ -60,10 +60,10 @@ function svmods_get_facebook_cookie(){
           array(4) { ["algorithm"]=> string(11) "HMAC-SHA256" ["code"]=> string(195) "AQAJj7gjLjy2XDnMshk0E6l4-9r8PBahRwYhDRXC9PonWoy_cnhV4Q836RwfXTkhVEsbHZmgAT_3iSMtKnUiU3WRdrR2qi7PjFOSfG9x2-V3CsfotRmU8If7JGKZ-UgZfOWQsmw4mVriBfpse_Cca10dOKpAaGHeQMOeifA6sg2oH-P2pm-qN9WPbFjw5cvEDqg" ["issued_at"]=> int(1331713263) ["user_id"]=> string(9) "566319849" } 
          */
 
-        $accessToken = $facebook->getAccessToken();
+        // $accessToken = $facebook->getAccessToken();
         // echo $accessToken;
 
-        if( !empty($sr['user_id']) and !empty($accessToken) ) {
+        if( !empty($sr['user_id']) ) {
             $user->data['is_facebook_user'] = $sr['user_id'];
             $user->data['svmods_facebook_data']['cookie'] = array(
                 'uid'          => $sr['user_id'],
@@ -318,7 +318,7 @@ function svmods_facebook_connect_template_hook(&$hook){
 		$url=str_replace('mode=logout', 'mode=login', $_SERVER['REQUEST_URI']);
 		$delim=(strpos($url,'?') === false) ? '?' : '&';
 		$url=(strpos($url, 'svmods_check_cookie') ===false) ? $url.$delim.'svmods_check_cookie=fb' : $url;
-		$template->assign_var('SVMODS_FACEBOOK_JS', "<div id='fb-root'></div><script src='http://connect.facebook.net/en_US/all.js'></script><script>FB.init({appId: '".$config['svmods_facebook_app_id']."', status: false, cookie: true, xfbml: true}); FB.Event.subscribe('auth.login', function(response){window.location.replace('".$url."');});</script>");
+		$template->assign_var('SVMODS_FACEBOOK_JS', "<div id='fb-root'></div><script src='//connect.facebook.net/en_US/all.js'></script><script>FB.init({appId: '".$config['svmods_facebook_app_id']."', status: false, cookie: true, xfbml: true}); FB.Event.subscribe('auth.login', function(response){window.location.replace('".$url."');});</script>");
 		$template->assign_var('SVMODS_FACEBOOK_INT',svmods_default_lang('SVMODS_FACEBOOK_INT','Facebook Integration'));
 		$template->assign_var('SVMODS_FACEBOOK_INT_EXPLAIN',svmods_default_lang('SVMODS_FACEBOOK_INT_EXPLAIN','Grant/revoke Facebook application authorization.'));
 		$template->assign_var('SVMODS_FACEBOOK_REVOKE',svmods_default_lang('SVMODS_FACEBOOK_REVOKE','Revoke Authorization'));
