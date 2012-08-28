@@ -45,6 +45,7 @@ function svmods_get_facebook_cookie(){
 	$svmods_facebook_data=array();
 	if (isset($_COOKIE['fbsr_'.$config['svmods_facebook_app_id']])){
 
+        global $phpbb_root_path;
         require_once($phpbb_root_path.'facebook-sdk/facebook.php');
         if(!empty($_SERVER['DEWALL'])){
             // 翻墙设置代理
@@ -313,7 +314,7 @@ function svmods_facebook_connect_template_hook(&$hook){
 	if ((!empty($config['svmods_facebook_app_id'])) && (!empty($config['svmods_facebook_secret'])) && ($config['svmods_facebook_compat']==2)){
 		$template->assign_var('SVMODS_FACEBOOK_APP_ID', $config['svmods_facebook_app_id']);
 		$template->assign_var('SVMODS_FACEBOOK_XMLNS', 'xmlns:fb="http://www.facebook.com/2008/fbml"');
-		$template->assign_var('TRANSLATION_INFO', "<a href='http://svmods.com' title='phpBB modifications and templates'>Facebook graph/connect modifications</a> by svmods.<br />".$template->_rootref['TRANSLATION_INFO']);
+		$template->assign_var('TRANSLATION_INFO', "".$template->_rootref['TRANSLATION_INFO']);
 		$template->assign_var('SVMODS_FACEBOOK_UID', $user->data['user_svmods_fb_uid']);
 		$url=str_replace('mode=logout', 'mode=login', $_SERVER['REQUEST_URI']);
 		$delim=(strpos($url,'?') === false) ? '?' : '&';
@@ -494,7 +495,7 @@ function svmods_facebook_connect_user_hook(&$hook){
 							}
 						}
 						require_once($phpbb_root_path . 'includes/functions_user.' . $phpEx);
-						$svmods_username=utf8_clean_string(request_var('svmods_username', ''));
+						$svmods_username=utf8_clean_string(request_var('svmods_username', '', true));
 						if (!empty($svmods_username)){
 							$invalid_username=validate_username($svmods_username);
 							if (!$invalid_username){
